@@ -1,4 +1,4 @@
-# threadpool
+# Thread Pool
 Simple C++ Thread pool 
 
 Use pthread
