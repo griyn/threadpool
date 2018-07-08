@@ -3,11 +3,11 @@
 #include "ThreadPool.h"
 
 void func1(void* param) {
-    std::cout << "hello1" << std::endl;
+    std::cout << "hello" << std::endl;
 }
 
 void func2(void* param) {
-    std::cout << "world2" << std::endl;
+    std::cout << "world" << std::endl;
 }
 
 int main() {
@@ -15,6 +15,11 @@ int main() {
     pool.run();
     pool.post_task(new griyn::base::Task(func1, NULL));
     pool.post_task(new griyn::base::Task(func2, NULL));
-    sleep(1);
+    pool.post_task(new griyn::base::Task(func1, NULL));
+    pool.post_task(new griyn::base::Task(func2, NULL));    
+    pool.post_task(new griyn::base::Task(func1, NULL));
+    pool.post_task(new griyn::base::Task(func2, NULL));    
+    pool.post_task(new griyn::base::Task(func1, NULL));
+    pool.post_task(new griyn::base::Task(func2, NULL));
     return 0;
 }
