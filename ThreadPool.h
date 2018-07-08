@@ -8,6 +8,8 @@
 namespace griyn {
 namespace base {
 
+class Task;
+
 class ThreadPool {
 public:
     // 用工作者数量初始化线程池
@@ -25,7 +27,7 @@ public:
 
     // 任务队列。
     // 为了方便使用者自由控制任务数量，设为public
-    std::queue<TaskBase*> _tasks;
+    std::queue<Task*> _tasks;
 
 private:
     std::vector<pthread_t> _workers;
@@ -35,30 +37,33 @@ private:
     pthread_mutex_t _mutex;
     pthread_cond_t _cond;
 
-    bool cond_wait();
+    bool wait_for_task();
 
     // 工作者的工作内容
     static void* thread_work(void* param);
 };
 
 // 继承任务基类用于创建任务，是线程池任务队列的指定成员
-class TaskBase {
+class Task {
 public:
-    explicit TaskBase(void* param) : _param(param);
-    virtual ~TaskBase() {};
-
-    virtual void handle() = 0;
+    typedef void (*TASK_HANDLER)(void* param);
+    explicit Task(TASK_HANDLER handler, void* param) :
+        _handler(handler), 
+        _param(param) {};
+    virtual ~Task() {};
+    void handle() { _handler(_param); };
 
 private:
     void* _param;
+    TASK_HANDLER _handler;
 };
 
 /////////////////////类实现/////////////////////
 ThreadPool::ThreadPool(size_t worker_num) : 
-        _workers(worker_num)
+        _workers(worker_num),
         _is_working(true) {
-    pthread_mutex_init(_mutex, NULL);
-    pthread_cond_init(_cond, NULL);
+    pthread_mutex_init(&_mutex, NULL);
+    pthread_cond_init(&_cond, NULL);
 }
 
 ThreadPool::~ThreadPool() {
@@ -68,7 +73,7 @@ ThreadPool::~ThreadPool() {
 bool ThreadPool::run() {
     for (int i = 0; i < _workers.size(); ++i)
         pthread_create(&_workers[i], NULL, thread_work, this);
-
+    
     return true;
 }
 
@@ -80,18 +85,13 @@ bool ThreadPool::post_task(Task * task) {
     return true;
 }
 
-bool ThreadPool::wait() {
-    
-}
-
 bool ThreadPool::stop() {
-    is_working = false;
-    pthread_cond_broadcast(&_cond);
-
-    if (!_tasks.empty()) {
-        delete _tasks.front();
-        _tasks.pop();
+    if (_is_working == false) {
+        return true;
     }
+
+    _is_working = false;
+    pthread_cond_broadcast(&_cond);
 
     for (size_t i = 0; i < _workers.size(); ++i) {
         void* status;
@@ -110,18 +110,20 @@ bool ThreadPool::wait_for_task() {
     pthread_mutex_unlock(&_mutex);
 }
 
-void *ThreadPool::work_content(void *param) {
+void *ThreadPool::thread_work(void *param) {
     ThreadPool * p_thread_pool = (ThreadPool*)param;
 
-    while (p_thread_pool->is_working || p_thread_pool->_tasks.empty()) {
+    while (p_thread_pool->_is_working) {
         p_thread_pool->wait_for_task();
 
-        Task* task = threadPool->_tasks.front();
-        threadPool->_tasks.pop();
-        task->handle();
+        if (!p_thread_pool->_tasks.empty()) {
+            Task* task = p_thread_pool->_tasks.front();
+            p_thread_pool->_tasks.pop();
+            task->handle();
+        }
     }
 
-    return nullptr;
+    return NULL;
 }
 
 } // base
